@@ -1,0 +1,682 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">
+<title>Health API Load Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one report column (max 1080px); chart cards on a 2-up grid that stacks to one column below 760px */
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --line: rgba(11, 11, 11, 0.10);
+  --code: #f0efec;
+  --shadow: rgba(11, 11, 11, 0.12);
+  --python: #2a78d6;
+  --go: #eb6834;
+  --node: #1baf7a;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #4a4a46; --line: rgba(255, 255, 255, 0.10); --code: #242422;
+    --shadow: rgba(0, 0, 0, 0.5);
+    --python: #3987e5; --go: #d95926; --node: #199e70;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #4a4a46; --line: rgba(255, 255, 255, 0.10); --code: #242422;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --python: #3987e5; --go: #d95926; --node: #199e70;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-inline: 16px;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-block: 40px 64px;
+  display: grid;
+  gap: 28px;
+}
+
+/* Header */
+header { display: grid; gap: 14px; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+h1 {
+  margin: 0;
+  font-size: clamp(28px, 4.2vw, 40px);
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.lede { margin: 0; font-size: 17px; color: var(--ink-2); max-width: 62ch; }
+.lede code { font-family: var(--mono); font-size: 0.88em; color: var(--ink); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+.backends { display: flex; flex-wrap: wrap; gap: 12px 28px; padding-top: 4px; }
+.backend { display: grid; grid-template-columns: 12px auto; column-gap: 8px; align-items: baseline; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; align-self: center; }
+.backend b { font-weight: 600; }
+.backend small { grid-column: 2; font-size: 13px; color: var(--ink-2); }
+.backend code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.verdict {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.45;
+  max-width: 60ch;
+  text-wrap: pretty;
+}
+.verdict strong { font-weight: 600; }
+
+/* Cards */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.span-2 { grid-column: 1 / -1; }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.card h2 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+.take { margin: 0; font-size: 14px; color: var(--ink-2); max-width: 65ch; }
+.chart { width: 100%; min-width: 0; padding-top: 6px; }
+.chart svg { display: block; overflow: visible; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { display: inline-block; flex: none; }
+.legend i.line { width: 16px; height: 2px; border-radius: 1px; }
+.legend i.box { width: 10px; height: 10px; border-radius: 2px; }
+.legend .icon { font-size: 12px; font-weight: 600; color: var(--ink); }
+
+/* SVG marks */
+.tick { fill: var(--muted); font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.lbl { fill: var(--ink); font: 500 13px var(--sans); }
+.sub { fill: var(--ink-2); font: 12px var(--sans); }
+.val { fill: var(--ink); font: 600 13px var(--sans); font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axisline { stroke: var(--axis); stroke-width: 1; }
+.cross { stroke: var(--muted); stroke-width: 1; }
+.ln { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.ring { stroke: var(--surface); stroke-width: 2; }
+.f-python { fill: var(--python); } .s-python { stroke: var(--python); }
+.f-go { fill: var(--go); } .s-go { stroke: var(--go); }
+.f-node { fill: var(--node); } .s-node { stroke: var(--node); }
+.f-good { fill: var(--good); } .f-critical { fill: var(--critical); }
+.bar { transition: opacity 120ms ease; }
+.row.is-hot .bar { opacity: 0.8; }
+.hit { fill: transparent; }
+.hit:focus { outline: none; }
+.hit:focus-visible { stroke: var(--ink); stroke-width: 1.5; }
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+
+/* Tooltip */
+#tip {
+  position: fixed;
+  z-index: 10;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px var(--shadow);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  min-width: 150px;
+  display: grid;
+  gap: 4px;
+}
+.tip-title { font-family: var(--mono); font-size: 11.5px; color: var(--muted); padding-bottom: 2px; }
+.tip-row { display: grid; grid-template-columns: 14px auto 1fr; align-items: center; gap: 8px; }
+.tip-key { display: inline-block; justify-self: center; }
+.tip-key.line { width: 14px; height: 2px; border-radius: 1px; }
+.tip-key.box { width: 10px; height: 10px; border-radius: 2px; }
+.tip-v { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tip-n { color: var(--ink-2); }
+
+/* Table */
+.table-wrap { overflow-x: auto; margin-inline: -4px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { padding: 7px 12px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; padding-left: 4px; }
+thead th { font-weight: 600; border-bottom-color: var(--axis); }
+thead th span { display: inline-flex; align-items: center; gap: 7px; }
+td { font-variant-numeric: tabular-nums; }
+td:first-child { color: var(--ink-2); }
+tr.group th {
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 18px;
+  padding-left: 4px;
+}
+
+/* How it was run + notes */
+pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--code);
+  border-radius: 6px;
+  padding: 12px 14px;
+  overflow-x: auto;
+}
+.notes { margin: 0; padding-left: 20px; display: grid; gap: 10px; max-width: 70ch; color: var(--ink-2); font-size: 14.5px; }
+.notes strong { color: var(--ink); font-weight: 600; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">backend-demo / load-test / results / <span id="run-id"></span></div>
+    <h1>Health API Load Test</h1>
+    <p class="lede">4,000 users called <code>GET /health</code> at the same time for 30 seconds. Each backend ran by itself, one after another, on the same Mac.</p>
+    <div class="meta" id="meta"></div>
+    <div class="backends" id="backends"></div>
+  </header>
+
+  <p class="verdict" id="verdict"></p>
+
+  <div class="grid">
+    <section class="card span-2">
+      <h2>Requests handled per second</h2>
+      <p class="take">Only successful responses (HTTP 200) are counted. Failed attempts are left out.</p>
+      <div class="chart" id="c-rps" data-label="Successful requests per second by backend"></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>How many attempts succeeded</h2>
+      <p class="take">Share of all connection attempts that got an HTTP 200 back. Hover a bar for the counts.</p>
+      <div class="legend">
+        <span><i class="box" style="background: var(--good)"></i><span class="icon" aria-hidden="true">✓</span>Succeeded</span>
+        <span><i class="box" style="background: var(--critical)"></i><span class="icon" aria-hidden="true">✕</span>Failed</span>
+      </div>
+      <div class="chart" id="c-success" data-label="Share of attempts that succeeded by backend"></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>Response time</h2>
+      <p class="take">Read each point as "this share of requests finished faster than this". p50 is the typical request, p99.99 the slowest few. The scale is logarithmic: each gridline is 10× the one below.</p>
+      <div class="legend" data-legend="line"></div>
+      <div class="chart" id="c-latency" data-label="Response time percentiles by backend, log scale"></div>
+    </section>
+
+    <section class="card">
+      <h2>Server memory</h2>
+      <p class="take">Memory used by the server process, sampled every second during the test.</p>
+      <div class="legend" data-legend="line"></div>
+      <div class="chart" id="c-mem" data-label="Server memory over the 30 second test"></div>
+    </section>
+
+    <section class="card">
+      <h2>Server CPU</h2>
+      <p class="take">CPU cores kept busy. Go spreads work across cores; Python and Node run on one.</p>
+      <div class="legend" data-legend="line"></div>
+      <div class="chart" id="c-cpu" data-label="Server CPU cores busy over the 30 second test"></div>
+    </section>
+
+    <section class="card">
+      <h2>Size of each response</h2>
+      <p class="take">Every response is about 100 bytes of JSON, so size doesn't explain the differences.</p>
+      <div class="chart" id="c-size" data-label="Response size in bytes by backend"></div>
+    </section>
+
+    <section class="card">
+      <h2>Data received in 30 seconds</h2>
+      <p class="take">Total response bytes the test tool received. More requests served means more data.</p>
+      <div class="chart" id="c-data" data-label="Total data received by backend"></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>Every number</h2>
+      <div class="table-wrap"><table id="table"></table></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>How it was run</h2>
+      <pre>oha -c 4000 -z 30s -w -t 30s http://127.0.0.1:&lt;port&gt;/health
+
+# Response from each backend
+{"status":"ok","service":"go-service","uptime_seconds":0.131,"timestamp":"2026-10-05T16:19:30.059935Z"}</pre>
+      <ul class="notes">
+        <li><strong>Failed attempts are mostly retries.</strong> Python and Node run as one process. While it is busy answering requests, it accepts new connections slowly, so waiting connections get reset. The test tool retries each one straight away, and every retry counts as another failure.</li>
+        <li><strong>Go used about 3.3 CPU cores with no setup.</strong> Python and Node each used one core, which explains most of the gap. Running them with several worker processes would narrow it.</li>
+        <li><strong>The test tool ran on the same Mac</strong> and competed with the servers for CPU, so Go's figure is probably limited by the machine.</li>
+        <li><strong>Each backend got 5 seconds of warm-up traffic first,</strong> which isn't counted. Requests still in flight at 30 seconds were allowed to finish.</li>
+      </ul>
+    </section>
+  </div>
+</div>
+
+<div id="tip" role="status" aria-live="polite" hidden></div>
+
+<script>
+const DATA = {"config": {"users": 4000, "duration": "30s", "warmup": "5s", "started_at": "2026-10-05T16:27:15Z", "cpu": "Apple M3", "cores": 8, "memory_gb": 24, "oha": "1.16.0"}, "backends": [{"id": "python", "okPerSec": 8000.070792107628, "attemptsPerSec": 19184.363304235856, "attempts": 579660, "ok": 241724, "errors": 337936, "errorTypes": {"Connection reset by peer (os error 54)": 40646, "Invalid argument (os error 22)": 50, "connection error": 295487, "error writing a body to connection": 1161, "operation was canceled": 592}, "testTime": 30.215232625, "latency": {"avg": 445.2521120091685, "p50": 429.104541, "p95": 727.720041, "p99": 792.399917, "max": 1284.091791}, "responseBytes": 112, "totalMB": 25.9891996383667, "mbPerSec": 0.8601356792753371, "peakMemMB": 158.234375, "avgCpu": 98.78709677419356, "peakCpu": 104.0, "memMB": [56.8, 76.4, 91.3, 106.2, 116.8, 124.9, 133.7, 141.9, 153.0, 158.1, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2, 158.2], "cpu": [102.3, 96.4, 95.9, 97.8, 97.6, 96.8, 85.0, 91.6, 91.5, 98.2, 99.6, 100.9, 102.1, 100.3, 91.3, 101.0, 102.1, 104.0, 101.8, 100.7, 100.6, 101.3, 102.3, 98.5, 101.7, 102.5, 100.1, 97.2, 100.8, 98.7, 101.8], "pct": [278.0, 306.46, 429.1, 569.17, 658.96, 727.72, 792.4, 920.56, 1084.42]}, {"id": "go", "okPerSec": 176101.5221797584, "attemptsPerSec": 176177.910848606, "attempts": 5290734, "ok": 5288440, "errors": 2294, "errorTypes": {"Connection reset by peer (os error 54)": 1256, "connection error": 966, "error writing a body to connection": 17, "operation was canceled": 55}, "testTime": 30.030631959, "latency": {"avg": 22.672890062780944, "p50": 21.329458, "p95": 39.840125, "p99": 66.275458, "max": 258.837625}, "responseBytes": 110, "totalMB": 557.4934024810791, "mbPerSec": 18.564158198276, "peakMemMB": 148.046875, "avgCpu": 332.8677419354839, "peakCpu": 358.6, "memMB": [21.6, 141.2, 141.9, 143.6, 143.8, 145.0, 145.1, 145.1, 145.4, 145.4, 145.4, 147.6, 147.6, 147.6, 147.6, 147.6, 147.6, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0, 148.0], "cpu": [351.7, 325.3, 342.6, 349.2, 358.6, 344.5, 327.4, 346.1, 311.7, 358.0, 350.4, 329.8, 336.4, 337.9, 349.9, 336.2, 343.8, 316.3, 331.1, 343.2, 354.2, 338.0, 355.3, 308.0, 353.6, 333.1, 357.2, 308.8, 336.8, 302.5, 181.3], "pct": [12.58, 19.43, 21.33, 23.99, 31.57, 39.84, 66.28, 99.66, 206.63]}, {"id": "node", "okPerSec": 18125.388003593554, "attemptsPerSec": 57741.25592221551, "attempts": 1742194, "ok": 546887, "errors": 1195307, "errorTypes": {"Connection reset by peer (os error 54)": 30141, "connection error": 1164570, "error writing a body to connection": 259, "operation was canceled": 337}, "testTime": 30.172429958, "latency": {"avg": 123.98453806945739, "p50": 118.220125, "p95": 181.521958, "p99": 266.355875, "max": 9549.786250000001}, "responseBytes": 102, "totalMB": 53.579872131347656, "mbPerSec": 1.7757890964012777, "peakMemMB": 210.6875, "avgCpu": 104.36333333333333, "peakCpu": 113.6, "memMB": [130.6, 174.3, 195.2, 196.8, 197.7, 197.8, 197.8, 198.1, 198.2, 198.3, 198.3, 198.4, 198.4, 201.5, 205.8, 206.2, 206.2, 206.5, 206.6, 207.3, 208.0, 209.0, 209.0, 209.1, 209.1, 210.5, 210.6, 210.6, 210.7, 210.7], "cpu": [107.7, 104.2, 103.6, 105.4, 96.5, 104.5, 109.4, 96.5, 110.4, 93.1, 105.4, 104.6, 98.2, 98.7, 101.4, 101.2, 107.5, 101.0, 105.4, 103.9, 108.4, 89.1, 113.6, 104.2, 110.0, 109.7, 110.4, 108.3, 109.9, 108.7], "pct": [74.3, 97.51, 118.22, 131.66, 150.72, 181.52, 266.36, 3108.94, 9496.85]}], "run": "20261005-215715"};
+const ORDER = ["python", "go", "node"];
+const META = {
+  python: { name: "Python", sub: "FastAPI · 1 process", port: 18000 },
+  go: { name: "Go", sub: "net/http · all cores", port: 18080 },
+  node: { name: "Node", sub: "Express · 1 process", port: 13000 },
+};
+const PCT_KEYS = ["p10", "p25", "p50", "p75", "p90", "p95", "p99", "p99.9", "p99.99"];
+const B = Object.fromEntries(DATA.backends.map(b => [b.id, b]));
+const LIST = ORDER.map(id => B[id]);
+
+const nf = (v, d = 0) => v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtMs = v => v >= 1000 ? `${nf(v / 1000, 2)} s` : `${nf(v, v < 100 ? 1 : 0)} ms`;
+const share = b => b.ok / b.attempts;
+const pct = b => `${nf(share(b) * 100, share(b) > 0.995 ? 2 : 1)}%`;
+const cores = v => `${nf(v, 2)} cores`;
+
+/* ---------- Header ---------- */
+const cfg = DATA.config;
+const started = new Date(cfg.started_at);
+document.getElementById("run-id").textContent = DATA.run;
+const metaEl = document.getElementById("meta");
+[
+  `${cfg.users.toLocaleString("en-US")} concurrent users`,
+  `${cfg.duration} per backend`,
+  `${cfg.cpu}, ${cfg.cores} cores, ${cfg.memory_gb} GB`,
+  `oha ${cfg.oha}`,
+  started.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) + `, ${started.toISOString().slice(11, 16)} UTC`,
+].forEach(t => { const s = document.createElement("span"); s.textContent = t; metaEl.appendChild(s); });
+
+const backendsEl = document.getElementById("backends");
+for (const id of ORDER) {
+  const d = document.createElement("div"); d.className = "backend";
+  const sw = document.createElement("i"); sw.className = "swatch"; sw.style.background = `var(--${id})`;
+  const name = document.createElement("b"); name.textContent = META[id].name + " ";
+  const port = document.createElement("code"); port.textContent = `:${META[id].port}`;
+  name.appendChild(port);
+  const sub = document.createElement("small"); sub.textContent = META[id].sub;
+  d.append(sw, name, sub); backendsEl.appendChild(d);
+}
+
+for (const lg of document.querySelectorAll('[data-legend="line"]')) {
+  for (const id of ORDER) {
+    const s = document.createElement("span");
+    const i = document.createElement("i"); i.className = "line"; i.style.background = `var(--${id})`;
+    s.append(i, document.createTextNode(META[id].name)); lg.appendChild(s);
+  }
+}
+
+{
+  const fastest = [...LIST].sort((a, b) => b.okPerSec - a.okPerSec);
+  const [top, ...rest] = fastest;
+  const ratio = b => { const r = top.okPerSec / b.okPerSec; return `${nf(r, r >= 10 ? 0 : 1)}×`; };
+  const v = document.getElementById("verdict");
+  const strong = document.createElement("strong");
+  strong.textContent = `${META[top.id].name} served ${nf(top.okPerSec)} requests per second`;
+  v.append(strong, document.createTextNode(
+    ` with ${pct(top)} success. That is ${rest.map(b => `${ratio(b)} ${META[b.id].name}`).join(" and ")}. ` +
+    `${rest.map(b => META[b.id].name).join(" and ")} each maxed out one CPU core, and most of their connection attempts failed.`
+  ));
+}
+
+/* ---------- SVG + tooltip helpers ---------- */
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs = {}, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function text(parent, x, y, str, cls, anchor = "start") {
+  const t = el("text", { x, y, class: cls, "text-anchor": anchor }, parent);
+  t.textContent = str;
+  return t;
+}
+function hbarPath(x, y, w, h, r = 4) {
+  r = Math.min(r, w, h / 2);
+  return `M${x},${y}H${x + w - r}A${r},${r} 0 0 1 ${x + w},${y + r}V${y + h - r}A${r},${r} 0 0 1 ${x + w - r},${y + h}H${x}Z`;
+}
+function niceTicks(max, target = 5) {
+  const raw = max / target, mag = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw);
+  const top = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = 0; v <= top + step / 2; v += step) ticks.push(+v.toFixed(6));
+  return { top, ticks };
+}
+
+const tip = document.getElementById("tip");
+function setTip(title, rows) {
+  tip.replaceChildren();
+  if (title) {
+    const t = document.createElement("div"); t.className = "tip-title"; t.textContent = title; tip.appendChild(t);
+  }
+  for (const r of rows) {
+    const row = document.createElement("div"); row.className = "tip-row";
+    const k = document.createElement("span");
+    if (r.color) { k.className = `tip-key ${r.shape || "line"}`; k.style.background = r.color; }
+    const v = document.createElement("span"); v.className = "tip-v"; v.textContent = r.value;
+    const n = document.createElement("span"); n.className = "tip-n"; n.textContent = r.label;
+    row.append(k, v, n); tip.appendChild(row);
+  }
+  tip.hidden = false;
+}
+function placeTip(x, y) {
+  const pad = 14, w = tip.offsetWidth, h = tip.offsetHeight;
+  let left = x + pad, top = y + pad;
+  if (left + w > innerWidth - 8) left = x - w - pad;
+  if (top + h > innerHeight - 8) top = y - h - pad;
+  tip.style.left = `${Math.max(8, left)}px`;
+  tip.style.top = `${Math.max(8, top)}px`;
+}
+function hideTip() { tip.hidden = true; }
+function bindTip(hit, group, content) {
+  const on = (x, y) => { group.classList.add("is-hot"); const c = content(); setTip(c.title, c.rows); placeTip(x, y); };
+  const off = () => { group.classList.remove("is-hot"); hideTip(); };
+  hit.addEventListener("pointermove", e => on(e.clientX, e.clientY));
+  hit.addEventListener("pointerleave", off);
+  hit.addEventListener("focus", () => { const r = hit.getBoundingClientRect(); on(r.left + r.width * 0.55, r.top); });
+  hit.addEventListener("blur", off);
+}
+function svgFor(host, W, H) {
+  return el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": host.dataset.label });
+}
+function rowLabel(g, W, y0, rowH, id) {
+  if (W >= 460) {
+    text(g, 0, y0 + rowH / 2 - 2, META[id].name, "lbl");
+    text(g, 0, y0 + rowH / 2 + 14, META[id].sub, "sub");
+  } else {
+    text(g, 0, y0 + rowH / 2 + 4.5, META[id].name, "lbl");
+  }
+}
+
+/* ---------- Horizontal bars (one value per backend) ---------- */
+function hbars(host, W, { value, fmt, tipFor, max }) {
+  const labelW = W >= 460 ? 150 : 64, valueW = 84, rowH = 48, barH = 20;
+  const H = LIST.length * rowH + 8;
+  const svg = svgFor(host, W, H);
+  const plotX = labelW, plotW = Math.max(40, W - labelW - valueW);
+  const top = max ?? Math.max(...LIST.map(value));
+  el("line", { x1: plotX + 0.5, x2: plotX + 0.5, y1: 4, y2: H - 4, class: "axisline" }, svg);
+  LIST.forEach((b, i) => {
+    const y0 = i * rowH + 4, by = y0 + (rowH - barH) / 2;
+    const g = el("g", { class: "row" }, svg);
+    rowLabel(g, W, y0, rowH, b.id);
+    const w = Math.max(3, (value(b) / top) * plotW);
+    el("path", { d: hbarPath(plotX + 1, by, w, barH), class: `bar f-${b.id}` }, g);
+    text(g, plotX + 1 + w + 8, by + barH / 2 + 4.5, fmt(value(b)), "val");
+    const hit = el("rect", { x: 0, y: y0, width: W, height: rowH, class: "hit", tabindex: 0, "aria-label": `${META[b.id].name}: ${fmt(value(b))}` }, g);
+    bindTip(hit, g, () => tipFor(b));
+  });
+  host.replaceChildren(svg);
+}
+
+/* ---------- 100% stacked bars: succeeded vs failed ---------- */
+function stacked(host, W) {
+  const labelW = W >= 460 ? 150 : 64, valueW = 70, rowH = 48, barH = 20;
+  const H = LIST.length * rowH + 8;
+  const svg = svgFor(host, W, H);
+  const plotX = labelW + 1, plotW = Math.max(40, W - labelW - valueW);
+  el("line", { x1: labelW + 0.5, x2: labelW + 0.5, y1: 4, y2: H - 4, class: "axisline" }, svg);
+  LIST.forEach((b, i) => {
+    const y0 = i * rowH + 4, by = y0 + (rowH - barH) / 2;
+    const g = el("g", { class: "row" }, svg);
+    rowLabel(g, W, y0, rowH, b.id);
+    const okW = share(b) * plotW;
+    const failW = plotW - okW - 2;
+    if (failW >= 1) {
+      el("rect", { x: plotX, y: by, width: okW, height: barH, class: "bar f-good" }, g);
+      el("path", { d: hbarPath(plotX + okW + 2, by, failW, barH), class: "bar f-critical" }, g);
+    } else {
+      el("path", { d: hbarPath(plotX, by, plotW, barH), class: "bar f-good" }, g);
+    }
+    text(g, W, by + barH / 2 + 4.5, pct(b), "val", "end");
+    const hit = el("rect", { x: 0, y: y0, width: W, height: rowH, class: "hit", tabindex: 0, "aria-label": `${META[b.id].name}: ${pct(b)} of attempts succeeded` }, g);
+    bindTip(hit, g, () => ({
+      title: `${META[b.id].name} · ${pct(b)} succeeded`,
+      rows: [
+        { color: "var(--good)", shape: "box", value: nf(b.ok), label: "succeeded" },
+        { color: "var(--critical)", shape: "box", value: nf(b.errors), label: "failed attempts" },
+        { value: nf(b.attempts), label: "total attempts" },
+      ],
+    }));
+  });
+  host.replaceChildren(svg);
+}
+
+/* ---------- Line chart with crosshair ---------- */
+function lineChart(host, W, o) {
+  const n = o.n, narrow = W < 480;
+  const H = narrow ? 210 : 250;
+  const top = 14, bottom = 30, left = 62;
+  const plotH = H - top - bottom;
+  const ty = o.y.log ? Math.log10 : v => v;
+  const y0 = ty(o.y.min), y1 = ty(o.y.max);
+  const sy = v => top + plotH - ((ty(v) - y0) / (y1 - y0)) * plotH;
+
+  const ends = o.series.map(s => { const i = s.values.length - 1; return { s, i, v: s.values[i], y: sy(s.values[i]) }; });
+  const sorted = [...ends].sort((a, b) => a.y - b.y);
+  const clash = sorted.some((e, k) => k > 0 && e.y - sorted[k - 1].y < 16);
+  const showEnds = !narrow && !clash;
+  const right = showEnds ? 104 : 14;
+  const plotW = W - left - right;
+  const sx = i => left + (i / (n - 1)) * plotW;
+
+  const svg = svgFor(host, W, H);
+  for (const t of o.y.ticks) {
+    const y = Math.round(sy(t)) + 0.5;
+    el("line", { x1: left, x2: left + plotW, y1: y, y2: y, class: t === o.y.min ? "axisline" : "gridline" }, svg);
+    text(svg, left - 10, y + 4, o.y.fmt(t), "tick", "end");
+  }
+  for (let i = 0; i < n; i++) if (o.showTick(i, narrow)) text(svg, sx(i), H - 8, o.xFmt(i), "tick", "middle");
+
+  for (const s of o.series) {
+    const d = s.values.map((v, i) => `${i ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join("");
+    el("path", { d, class: `ln s-${s.id}` }, svg);
+  }
+  for (const e of ends) {
+    el("circle", { cx: sx(e.i), cy: e.y, r: 4, class: `f-${e.s.id} ring` }, svg);
+    if (showEnds) text(svg, sx(e.i) + 10, e.y + 4.5, `${META[e.s.id].name} ${o.valueFmt(e.v)}`, "lbl");
+  }
+
+  const cross = el("line", { y1: top, y2: top + plotH, class: "cross", visibility: "hidden" }, svg);
+  const dots = o.series.map(s => el("circle", { r: 4, class: `f-${s.id} ring`, visibility: "hidden" }, svg));
+  const hit = el("rect", {
+    x: left, y: top, width: plotW, height: plotH, class: "hit", tabindex: 0,
+    "aria-label": `${host.dataset.label}. Use the left and right arrow keys to read values.`,
+  }, svg);
+
+  let cur = n - 1;
+  const show = (i, cx, cy) => {
+    cur = i;
+    const x = sx(i);
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+    o.series.forEach((s, k) => {
+      const v = s.values[i];
+      if (v == null) { dots[k].setAttribute("visibility", "hidden"); return; }
+      dots[k].setAttribute("cx", x); dots[k].setAttribute("cy", sy(v)); dots[k].setAttribute("visibility", "visible");
+    });
+    const rows = o.series
+      .map(s => ({ id: s.id, v: s.values[i] }))
+      .sort((a, b) => (b.v ?? -1) - (a.v ?? -1))
+      .map(r => ({ color: `var(--${r.id})`, value: r.v == null ? "–" : o.valueFmt(r.v), label: META[r.id].name }));
+    setTip(o.tipTitle(i), rows);
+    if (cx == null) { const b = svg.getBoundingClientRect(); cx = b.left + x; cy = b.top + top; }
+    placeTip(cx, cy);
+  };
+  const hide = () => {
+    cross.setAttribute("visibility", "hidden");
+    dots.forEach(d => d.setAttribute("visibility", "hidden"));
+    hideTip();
+  };
+  const indexAt = clientX => {
+    const b = svg.getBoundingClientRect();
+    return Math.max(0, Math.min(n - 1, Math.round(((clientX - b.left - left) / plotW) * (n - 1))));
+  };
+  hit.addEventListener("pointermove", e => show(indexAt(e.clientX), e.clientX, e.clientY));
+  hit.addEventListener("pointerleave", hide);
+  hit.addEventListener("focus", () => show(cur));
+  hit.addEventListener("blur", hide);
+  hit.addEventListener("keydown", e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    show(Math.max(0, Math.min(n - 1, cur + (e.key === "ArrowRight" ? 1 : -1))));
+  });
+  host.replaceChildren(svg);
+}
+
+/* ---------- Charts ---------- */
+const RENDER = {
+  "c-rps": (host, W) => hbars(host, W, {
+    value: b => b.okPerSec,
+    fmt: v => nf(v),
+    tipFor: b => ({
+      title: META[b.id].name,
+      rows: [
+        { color: `var(--${b.id})`, shape: "box", value: `${nf(b.okPerSec)} / s`, label: "successful" },
+        { value: `${nf(b.attemptsPerSec)} / s`, label: "attempts incl. failed" },
+      ],
+    }),
+  }),
+  "c-success": stacked,
+  "c-latency": (host, W) => lineChart(host, W, {
+    n: PCT_KEYS.length,
+    series: LIST.map(b => ({ id: b.id, values: b.pct })),
+    y: { log: true, min: 10, max: 10000, ticks: [10, 100, 1000, 10000], fmt: v => v >= 1000 ? `${v / 1000} s` : `${v} ms` },
+    xFmt: i => PCT_KEYS[i],
+    showTick: (i, narrow) => !narrow || i % 2 === 0,
+    valueFmt: fmtMs,
+    tipTitle: i => `${PCT_KEYS[i]} · ${PCT_KEYS[i].slice(1)}% of requests were faster`,
+  }),
+  "c-mem": (host, W) => {
+    const { top, ticks } = niceTicks(Math.max(...LIST.flatMap(b => b.memMB)));
+    lineChart(host, W, {
+      n: Math.max(...LIST.map(b => b.memMB.length)),
+      series: LIST.map(b => ({ id: b.id, values: b.memMB })),
+      y: { min: 0, max: top, ticks, fmt: v => `${v} MB` },
+      xFmt: i => `${i}s`,
+      showTick: (i, narrow) => i % (narrow ? 10 : 5) === 0,
+      valueFmt: v => `${nf(v, 1)} MB`,
+      tipTitle: i => `${i} s into the test`,
+    });
+  },
+  "c-cpu": (host, W) => {
+    const series = LIST.map(b => ({ id: b.id, values: b.cpu.map(v => v / 100) }));
+    const { top, ticks } = niceTicks(Math.max(...series.flatMap(s => s.values)));
+    lineChart(host, W, {
+      n: Math.max(...series.map(s => s.values.length)),
+      series,
+      y: { min: 0, max: top, ticks, fmt: v => v === 0 ? "0" : v === 1 ? "1 core" : `${v} cores` },
+      xFmt: i => `${i}s`,
+      showTick: (i, narrow) => i % (narrow ? 10 : 5) === 0,
+      valueFmt: cores,
+      tipTitle: i => `${i} s into the test`,
+    });
+  },
+  "c-size": (host, W) => hbars(host, W, {
+    value: b => b.responseBytes,
+    fmt: v => `${v} B`,
+    tipFor: b => ({ title: META[b.id].name, rows: [{ color: `var(--${b.id})`, shape: "box", value: `${b.responseBytes} bytes`, label: "per response" }] }),
+  }),
+  "c-data": (host, W) => hbars(host, W, {
+    value: b => b.totalMB,
+    fmt: v => `${nf(v, v < 100 ? 1 : 0)} MB`,
+    tipFor: b => ({
+      title: META[b.id].name,
+      rows: [
+        { color: `var(--${b.id})`, shape: "box", value: `${nf(b.totalMB, 1)} MB`, label: "received" },
+        { value: `${nf(b.mbPerSec, 2)} MB/s`, label: "average rate" },
+      ],
+    }),
+  }),
+};
+
+for (const [id, render] of Object.entries(RENDER)) {
+  const host = document.getElementById(id);
+  let lastW = 0;
+  new ResizeObserver(entries => {
+    const w = Math.floor(entries[0].contentRect.width);
+    if (!w || w === lastW) return;
+    lastW = w;
+    hideTip();
+    render(host, w);
+  }).observe(host);
+}
+
+/* ---------- Table ---------- */
+const TABLE = [
+  ["Throughput"],
+  ["Successful requests / second", b => nf(b.okPerSec)],
+  ["Attempts / second (incl. failed)", b => nf(b.attemptsPerSec)],
+  ["Requests"],
+  ["Successful (HTTP 200)", b => nf(b.ok)],
+  ["Failed attempts", b => nf(b.errors)],
+  ["Total attempts", b => nf(b.attempts)],
+  ["Success rate", pct],
+  ["Test time", b => `${nf(b.testTime, 2)} s`],
+  ["Response time"],
+  ["Average", b => fmtMs(b.latency.avg)],
+  ["p50 (typical)", b => fmtMs(b.latency.p50)],
+  ["p95", b => fmtMs(b.latency.p95)],
+  ["p99", b => fmtMs(b.latency.p99)],
+  ["Slowest", b => fmtMs(b.latency.max)],
+  ["Size"],
+  ["Response size", b => `${b.responseBytes} B`],
+  ["Total data received", b => `${nf(b.totalMB, 1)} MB`],
+  ["Data / second", b => `${nf(b.mbPerSec, 2)} MB/s`],
+  ["Server"],
+  ["Peak memory", b => `${nf(b.peakMemMB, 1)} MB`],
+  ["Average CPU", b => cores(b.avgCpu / 100)],
+  ["Peak CPU", b => cores(b.peakCpu / 100)],
+];
+{
+  const table = document.getElementById("table");
+  const thead = table.createTHead().insertRow();
+  const corner = document.createElement("th"); corner.textContent = "Metric"; thead.appendChild(corner);
+  for (const b of LIST) {
+    const th = document.createElement("th");
+    const s = document.createElement("span");
+    const sw = document.createElement("i"); sw.className = "swatch"; sw.style.background = `var(--${b.id})`;
+    s.append(sw, document.createTextNode(META[b.id].name));
+    th.appendChild(s); thead.appendChild(th);
+  }
+  const tbody = table.createTBody();
+  for (const [label, get] of TABLE) {
+    const tr = tbody.insertRow();
+    if (!get) {
+      tr.className = "group";
+      const th = document.createElement("th"); th.colSpan = LIST.length + 1; th.textContent = label; tr.appendChild(th);
+      continue;
+    }
+    tr.insertCell().textContent = label;
+    for (const b of LIST) tr.insertCell().textContent = get(b);
+  }
+}
+</script>
+</body></html>

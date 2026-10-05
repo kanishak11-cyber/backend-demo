@@ -1,0 +1,7 @@
+{"users": 4000, "duration": "30s", "warmup": "5s",
+ "started_at": "2026-10-05T17:03:26Z",
+ "cpu": "Apple M3", "cores": 8,
+ "memory_gb": 24,
+ "oha": "1.16.0",
+ "memory_limit": "4g",
+ "environment": "Docker VM: 8 CPUs, 7.7 GB RAM, 7.0.12-linuxkit kernel"}

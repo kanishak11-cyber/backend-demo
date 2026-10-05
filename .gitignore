@@ -1,0 +1,12 @@
+# Dependencies
+Python/.venv/
+__pycache__/
+node-js/node_modules/
+
+# Build output
+rust/target/
+C/server
+C/health-server
+load-test/bin/
+
+.DS_Store

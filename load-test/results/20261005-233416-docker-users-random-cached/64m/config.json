@@ -1,0 +1,8 @@
+{"users": 4000, "duration": "30s", "warmup": "5s",
+ "endpoint": "/users/random/cached", "db_pool_size": 20,
+ "started_at": "2026-10-05T18:04:27Z",
+ "cpu": "Apple M3", "cores": 8,
+ "memory_gb": 24,
+ "oha": "1.16.0",
+ "memory_limit": "64m",
+ "environment": "Docker VM: 8 CPUs, 7.7 GB RAM, 7.0.12-linuxkit kernel"}

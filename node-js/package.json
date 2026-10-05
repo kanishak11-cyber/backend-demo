@@ -1,0 +1,16 @@
+{
+  "name": "node-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.0"
+  }
+}

@@ -1,0 +1,44 @@
+name: backend-demo
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: backend-demo-postgres
+    # Room for all five backends' pools (20 each) at once, plus psql sessions.
+    command: ["postgres", "-c", "max_connections=200"]
+    environment:
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+      POSTGRES_DB: demo
+    ports:
+      - "5434:5432"  # 5434 on the host so it does not clash with a local Postgres on 5432
+    volumes:
+      - pgdata:/var/lib/postgresql
+      # Runs once, when the volume is empty: creates the table and seeds users.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # TCP check, so it only passes after the init scripts finish.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U demo -d demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+  redis:
+    image: redis:8-alpine
+    container_name: backend-demo-redis
+    # Cache only: nothing saved to disk, least-recently-used keys evicted when full.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:
+
+networks:
+  default:
+    name: backend-demo-loadtest

@@ -1,0 +1,5 @@
+{"users": 4000, "duration": "30s", "warmup": "5s",
+ "started_at": "2026-10-05T16:27:15Z",
+ "cpu": "Apple M3", "cores": 8,
+ "memory_gb": 24,
+ "oha": "1.16.0"}
